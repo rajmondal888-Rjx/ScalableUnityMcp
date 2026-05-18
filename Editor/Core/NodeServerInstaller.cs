@@ -115,22 +115,26 @@ namespace ScalableMCP.Editor
         // --------------------------------------------------------------------------
         private static string ResolveServerDir()
         {
-            // 1. Via PackageManager API (works for registry/git installs and local file: refs)
+            // 1. Resolve via Unity's virtual Packages/ path (works for git, registry, and local file: installs)
             try
             {
-                var info = UnityEditor.PackageManager.PackageInfo.FindForAssetPath("Packages/com.scalable.mcp-unity");
-                if (info != null)
+                string resolved = Path.GetFullPath("Packages/com.scalable.mcp-unity");
+                string candidate = Path.Combine(resolved, "Server~");
+                if (Directory.Exists(candidate)) return candidate;
+            }
+            catch { }
+
+            // 2. Fallback: scan PackageCache directly
+            try
+            {
+                string cacheRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "PackageCache"));
+                foreach (var dir in Directory.GetDirectories(cacheRoot, "com.scalable.mcp-unity*"))
                 {
-                    string candidate = Path.Combine(info.resolvedPath, "Server~");
+                    string candidate = Path.Combine(dir, "Server~");
                     if (Directory.Exists(candidate)) return candidate;
                 }
             }
             catch { }
-
-            // 2. Fallback: project root sibling (developer setup: file:../../scalable-unity-mcp/unity-plugin)
-            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            string devPath     = Path.GetFullPath(Path.Combine(projectRoot, "..", "..", "scalable-unity-mcp", "unity-plugin", "Server~"));
-            if (Directory.Exists(devPath)) return devPath;
 
             return null;
         }
