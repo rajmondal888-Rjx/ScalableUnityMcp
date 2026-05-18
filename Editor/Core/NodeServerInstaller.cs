@@ -50,11 +50,17 @@ namespace ScalableMCP.Editor
 
         public static async Task RunSetupAsync()
         {
+            // Re-resolve in case InitAsync hasn't run yet
+            if (ServerDir == null)
+                ServerDir = ResolveServerDir();
+
             if (ServerDir == null)
             {
                 UnityEngine.Debug.LogError("[ScalableMCP] Server~ directory not found.");
                 return;
             }
+
+            BuildEntry = Path.Combine(ServerDir, "build", "index.js");
 
             bool ok = await RunNpmAsync(ServerDir, "install") && await RunNpmAsync(ServerDir, "run build");
             IsInstalled = ok && File.Exists(BuildEntry);
