@@ -150,7 +150,7 @@ namespace ScalableMCP.Editor
             var tcs = new TaskCompletionSource<bool>();
             try
             {
-                string npmCmd = IsWindows() ? "npm.cmd" : "npm";
+                string npmCmd = ResolveNpmPath();
                 var psi = new ProcessStartInfo
                 {
                     FileName               = npmCmd,
@@ -185,6 +185,23 @@ namespace ScalableMCP.Editor
                 tcs.TrySetResult(false);
             }
             return tcs.Task;
+        }
+
+        private static string ResolveNpmPath()
+        {
+            // Check common install locations first — Unity's spawned process may have a stripped PATH
+            string[] candidates = IsWindows()
+                ? new[] {
+                    @"C:\Program Files\nodejs\npm.cmd",
+                    @"C:\Program Files (x86)\nodejs\npm.cmd",
+                    Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "npm", "npm.cmd"),
+                  }
+                : new[] { "/usr/local/bin/npm", "/usr/bin/npm", "/opt/homebrew/bin/npm" };
+
+            foreach (var p in candidates)
+                if (File.Exists(p)) return p;
+
+            return IsWindows() ? "npm.cmd" : "npm"; // fallback to PATH
         }
 
         private static bool IsWindows()
