@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using UnityEditor;
-using UnityEditor.PackageManager;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
 
@@ -119,7 +118,7 @@ namespace ScalableMCP.Editor
             // 1. Via PackageManager API (works for registry/git installs and local file: refs)
             try
             {
-                var info = PackageInfo.FindForAssetPath("Packages/com.scalable.mcp-unity");
+                var info = UnityEditor.PackageManager.PackageInfo.FindForAssetPath("Packages/com.scalable.mcp-unity");
                 if (info != null)
                 {
                     string candidate = Path.Combine(info.resolvedPath, "Server~");
