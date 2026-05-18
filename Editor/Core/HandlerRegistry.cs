@@ -49,7 +49,8 @@ namespace ScalableMCP.Editor
                     typeof(ToolHandlerBase).IsAssignableFrom(t) &&
                     !t.IsAbstract &&
                     t != typeof(DelegateToolHandler) &&
-                    t != typeof(GetRegisteredToolsHandler));
+                    t != typeof(GetRegisteredToolsHandler) &&
+                    t.GetConstructor(Type.EmptyTypes) != null);
 
             foreach (var type in customTypes)
             {
