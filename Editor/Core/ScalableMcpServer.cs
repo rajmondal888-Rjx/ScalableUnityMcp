@@ -77,7 +77,7 @@ namespace ScalableMCP.Editor
             GC.SuppressFinalize(this);
         }
 
-        public void StartServer()
+        public void StartServer(bool isRetry = false)
         {
             if (IsListening)
             {
@@ -94,7 +94,22 @@ namespace ScalableMCP.Editor
             }
             catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
             {
-                Debug.LogError($"[ScalableMCP] Port {ScalableMcpSettings.Instance.Port} already in use: {ex.Message}");
+                _wsServer = null;
+                if (!isRetry)
+                {
+                    // Port still in TIME_WAIT after previous domain reload — retry once after 1.5 s
+                    Debug.LogWarning($"[ScalableMCP] Port {ScalableMcpSettings.Instance.Port} busy, retrying in 1.5s...");
+                    var captured = this;
+                    EditorApplication.delayCall += () =>
+                    {
+                        System.Threading.Tasks.Task.Delay(1500).ContinueWith(_ =>
+                            UnityEditor.EditorApplication.delayCall += () => captured.StartServer(isRetry: true));
+                    };
+                }
+                else
+                {
+                    Debug.LogError($"[ScalableMCP] Port {ScalableMcpSettings.Instance.Port} still in use after retry. Use Tools > Scalable MCP → Refresh.");
+                }
             }
             catch (Exception ex)
             {
