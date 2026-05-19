@@ -41,9 +41,9 @@ const DEFAULT_CONFIG = {
   minReconnectDelay: 1000,
   maxReconnectDelay: 30000,
   reconnectBackoffMultiplier: 2,
-  maxReconnectAttempts: 50,
-  heartbeatInterval: 30000,
-  heartbeatTimeout: 5000,
+  maxReconnectAttempts: -1,       // never give up — Unity may be recompiling or reloading
+  heartbeatInterval: 45000,
+  heartbeatTimeout: 20000,        // Unity can be busy for >5s during heavy ops
   playModePollingInterval: 3000
 };
 
