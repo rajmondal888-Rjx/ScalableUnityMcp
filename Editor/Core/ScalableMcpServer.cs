@@ -77,43 +77,66 @@ namespace ScalableMCP.Editor
             GC.SuppressFinalize(this);
         }
 
-        public void StartServer(bool isRetry = false)
+        public void StartServer(int retryCount = 0)
         {
             if (IsListening)
             {
                 Debug.Log($"[ScalableMCP] Already listening on port {ScalableMcpSettings.Instance.Port}");
                 return;
             }
-            try
+
+            int port = ScalableMcpSettings.Instance.Port;
+
+            // Check port before binding so we can give a clear message
+            if (IsPortInUse(port))
             {
-                var host = ScalableMcpSettings.Instance.AllowRemoteConnections ? "0.0.0.0" : "localhost";
-                _wsServer = new WebSocketServer($"ws://{host}:{ScalableMcpSettings.Instance.Port}");
-                _wsServer.AddWebSocketService("/McpUnity", () => new ScalableMcpSocketHandler(this));
-                _wsServer.Start();
-                Debug.Log($"[ScalableMCP] Server started on {host}:{ScalableMcpSettings.Instance.Port}");
-            }
-            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
-            {
-                _wsServer = null;
-                if (!isRetry)
+                const int maxRetries = 5;
+                if (retryCount < maxRetries)
                 {
-                    // Port still in TIME_WAIT after previous domain reload — retry once after 1.5 s
-                    Debug.LogWarning($"[ScalableMCP] Port {ScalableMcpSettings.Instance.Port} busy, retrying in 1.5s...");
+                    int delayMs = (retryCount + 1) * 1000; // 1s, 2s, 3s, 4s, 5s
+                    Debug.LogWarning($"[ScalableMCP] Port {port} in use, retry {retryCount + 1}/{maxRetries} in {delayMs}ms...");
                     var captured = this;
+                    int nextRetry = retryCount + 1;
                     EditorApplication.delayCall += () =>
                     {
-                        System.Threading.Tasks.Task.Delay(1500).ContinueWith(_ =>
-                            UnityEditor.EditorApplication.delayCall += () => captured.StartServer(isRetry: true));
+                        System.Threading.Tasks.Task.Delay(delayMs).ContinueWith(_ =>
+                            UnityEditor.EditorApplication.delayCall += () => captured.StartServer(nextRetry));
                     };
                 }
                 else
                 {
-                    Debug.LogError($"[ScalableMCP] Port {ScalableMcpSettings.Instance.Port} still in use after retry. Use Tools > Scalable MCP → Refresh.");
+                    Debug.LogError($"[ScalableMCP] Port {port} still occupied after {maxRetries} retries. Kill the process using port {port} and click Refresh in Tools > Scalable MCP.");
                 }
+                return;
+            }
+
+            try
+            {
+                var host = ScalableMcpSettings.Instance.AllowRemoteConnections ? "0.0.0.0" : "localhost";
+                _wsServer = new WebSocketServer($"ws://{host}:{port}");
+                _wsServer.AddWebSocketService("/McpUnity", () => new ScalableMcpSocketHandler(this));
+                _wsServer.Start();
+                Debug.Log($"[ScalableMCP] Server started on {host}:{port}");
             }
             catch (Exception ex)
             {
+                _wsServer = null;
                 Debug.LogError($"[ScalableMCP] Failed to start server: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private static bool IsPortInUse(int port)
+        {
+            try
+            {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+                listener.Start();
+                listener.Stop();
+                return false;
+            }
+            catch (SocketException)
+            {
+                return true;
             }
         }
 
