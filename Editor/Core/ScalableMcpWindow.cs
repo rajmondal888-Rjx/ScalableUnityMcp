@@ -24,59 +24,70 @@ namespace ScalableMCP.Editor
             var settings = ScalableMcpSettings.Instance;
             bool listening = server?.IsListening ?? false;
 
-            // ── Node.js setup banner (shown until Server~/build exists) ──
-            bool nodeReady = NodeServerInstaller.IsInstalled;
-            if (!nodeReady)
-            {
-                EditorGUILayout.Space(4);
-                EditorGUILayout.HelpBox(
-                    "Node.js server not built yet.\nClick Setup to run: npm install && npm run build",
-                    MessageType.Warning);
-                if (GUILayout.Button("Run Setup", GUILayout.Height(28)))
-                    _ = NodeServerInstaller.RunSetupAsync();
-                DrawSeparator();
-            }
-
-            // ── Header ──────────────────────────────────────────────
+            // ── Status panel ─────────────────────────────────────────
             EditorGUILayout.Space(6);
+
+            var statusBg = new GUIStyle(EditorStyles.helpBox);
+            EditorGUILayout.BeginVertical(statusBg);
+
             EditorGUILayout.BeginHorizontal();
 
+            // Coloured dot
             var prevColor = GUI.color;
-            GUI.color = listening ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.4f, 0.4f);
-            GUILayout.Label("●", GUILayout.Width(18));
+            GUI.color = listening ? new Color(0.25f, 1f, 0.35f) : new Color(1f, 0.35f, 0.35f);
+            GUILayout.Label("●", EditorStyles.boldLabel, GUILayout.Width(20));
             GUI.color = prevColor;
 
-            EditorGUILayout.LabelField(
-                listening ? $"Running  |  port {settings.Port}" : "Stopped",
-                EditorStyles.boldLabel);
+            // Status text
+            string statusText = listening ? "Running" : "Stopped";
+            EditorGUILayout.LabelField(statusText, EditorStyles.boldLabel, GUILayout.Width(70));
+
+            // Port
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.LabelField("Port:", GUILayout.Width(32));
+            EditorGUILayout.LabelField(settings.Port.ToString(), EditorStyles.boldLabel, GUILayout.Width(50));
 
             EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+
             EditorGUILayout.Space(4);
 
-            // ── Buttons ─────────────────────────────────────────────
+            // ── Server control buttons ───────────────────────────────
             EditorGUILayout.BeginHorizontal();
+
             if (listening)
             {
-                if (GUILayout.Button("Stop", GUILayout.Height(26)))
+                if (GUILayout.Button("Stop", GUILayout.Height(28)))
                     server.StopServer();
             }
             else
             {
-                if (GUILayout.Button("Start", GUILayout.Height(26)))
+                GUI.enabled = NodeServerInstaller.IsInstalled;
+                if (GUILayout.Button("Start", GUILayout.Height(28)))
                     server?.StartServer();
+                GUI.enabled = true;
             }
 
-            if (GUILayout.Button("Refresh", GUILayout.Height(26), GUILayout.Width(72)))
+            if (GUILayout.Button("Restart", GUILayout.Height(28)))
             {
                 server?.StopServer();
                 server?.StartServer();
                 Repaint();
             }
 
-            if (GUILayout.Button("Open Custom Folder", GUILayout.Height(26)))
+            if (GUILayout.Button("⚙", GUILayout.Height(28), GUILayout.Width(28)))
                 OpenCustomFolder();
 
             EditorGUILayout.EndHorizontal();
+
+            // ── Node.js setup row (only when not built) ──────────────
+            if (!NodeServerInstaller.IsInstalled)
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox("Node.js server not built yet. Click Run Setup.", MessageType.Warning);
+                if (GUILayout.Button("Run Setup", GUILayout.Height(24)))
+                    _ = NodeServerInstaller.RunSetupAsync();
+            }
 
             EditorGUILayout.Space(6);
             DrawSeparator();

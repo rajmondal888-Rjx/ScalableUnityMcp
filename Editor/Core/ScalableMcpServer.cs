@@ -26,6 +26,10 @@ namespace ScalableMCP.Editor
         private ConsoleLogsService _consoleLogs;
         private TestRunnerService  _testRunner;
 
+        // Port-retry state — all accessed on main thread only via EditorApplication.update
+        private int    _portRetryCount;
+        private double _portRetryAt = -1;
+
         public ConcurrentDictionary<string, string> Clients { get; } = new();
 
         [DidReloadScripts]
@@ -69,6 +73,7 @@ namespace ScalableMCP.Editor
 
         public void Dispose()
         {
+            EditorApplication.update -= OnRetryUpdate;
             StopServer();
             EditorApplication.quitting                -= OnEditorQuitting;
             AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeReload;
@@ -77,38 +82,33 @@ namespace ScalableMCP.Editor
             GC.SuppressFinalize(this);
         }
 
-        public void StartServer(int retryCount = 0)
+        public void StartServer()
         {
-            if (IsListening)
-            {
-                Debug.Log($"[ScalableMCP] Already listening on port {ScalableMcpSettings.Instance.Port}");
-                return;
-            }
+            if (IsListening) return;
 
             int port = ScalableMcpSettings.Instance.Port;
 
-            // Check port before binding so we can give a clear message
             if (IsPortInUse(port))
             {
-                const int maxRetries = 5;
-                if (retryCount < maxRetries)
+                const int maxRetries = 6;
+                if (_portRetryCount < maxRetries)
                 {
-                    int delayMs = (retryCount + 1) * 1000; // 1s, 2s, 3s, 4s, 5s
-                    Debug.LogWarning($"[ScalableMCP] Port {port} in use, retry {retryCount + 1}/{maxRetries} in {delayMs}ms...");
-                    var captured = this;
-                    int nextRetry = retryCount + 1;
-                    EditorApplication.delayCall += () =>
-                    {
-                        System.Threading.Tasks.Task.Delay(delayMs).ContinueWith(_ =>
-                            UnityEditor.EditorApplication.delayCall += () => captured.StartServer(nextRetry));
-                    };
+                    _portRetryCount++;
+                    _portRetryAt = EditorApplication.timeSinceStartup + _portRetryCount;
+                    EditorApplication.update -= OnRetryUpdate;
+                    EditorApplication.update += OnRetryUpdate;
+                    Debug.LogWarning($"[ScalableMCP] Port {port} busy, retry {_portRetryCount}/{maxRetries} in {_portRetryCount}s...");
                 }
                 else
                 {
-                    Debug.LogError($"[ScalableMCP] Port {port} still occupied after {maxRetries} retries. Kill the process using port {port} and click Refresh in Tools > Scalable MCP.");
+                    _portRetryCount = 0;
+                    Debug.LogError($"[ScalableMCP] Port {port} still occupied after {maxRetries} retries. Use Tools > Scalable MCP → Refresh.");
                 }
                 return;
             }
+
+            _portRetryCount = 0;
+            EditorApplication.update -= OnRetryUpdate;
 
             try
             {
@@ -118,11 +118,23 @@ namespace ScalableMCP.Editor
                 _wsServer.Start();
                 Debug.Log($"[ScalableMCP] Server started on {host}:{port}");
             }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {
+                _wsServer = null;
+                StartServer(); // rare race — re-enter retry path
+            }
             catch (Exception ex)
             {
                 _wsServer = null;
                 Debug.LogError($"[ScalableMCP] Failed to start server: {ex.Message}\n{ex.StackTrace}");
             }
+        }
+
+        private void OnRetryUpdate()
+        {
+            if (EditorApplication.timeSinceStartup < _portRetryAt) return;
+            EditorApplication.update -= OnRetryUpdate;
+            StartServer();
         }
 
         private static bool IsPortInUse(int port)
@@ -200,6 +212,7 @@ namespace ScalableMCP.Editor
         private static void OnBeforeReload()
         {
             if (Application.isBatchMode || _instance == null) return;
+            EditorApplication.update -= _instance.OnRetryUpdate;
             if (_instance.IsListening) _instance.StopServer();
         }
 
