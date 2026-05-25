@@ -86,32 +86,32 @@ namespace ScalableMCP.Editor
         {
             if (IsListening) return;
 
-            int port = ScalableMcpSettings.Instance.Port;
-
-            if (IsPortInUse(port))
-            {
-                const int maxRetries = 6;
-                if (_portRetryCount < maxRetries)
-                {
-                    _portRetryCount++;
-                    _portRetryAt = EditorApplication.timeSinceStartup + _portRetryCount;
-                    EditorApplication.update -= OnRetryUpdate;
-                    EditorApplication.update += OnRetryUpdate;
-                    Debug.LogWarning($"[ScalableMCP] Port {port} busy, retry {_portRetryCount}/{maxRetries} in {_portRetryCount}s...");
-                }
-                else
-                {
-                    _portRetryCount = 0;
-                    Debug.LogError($"[ScalableMCP] Port {port} still occupied after {maxRetries} retries. Use Tools > Scalable MCP → Refresh.");
-                }
-                return;
-            }
-
-            _portRetryCount = 0;
-            EditorApplication.update -= OnRetryUpdate;
-
             try
             {
+                int port = ScalableMcpSettings.Instance.Port;
+
+                if (IsPortInUse(port))
+                {
+                    const int maxRetries = 6;
+                    if (_portRetryCount < maxRetries)
+                    {
+                        _portRetryCount++;
+                        _portRetryAt = EditorApplication.timeSinceStartup + _portRetryCount;
+                        EditorApplication.update -= OnRetryUpdate;
+                        EditorApplication.update += OnRetryUpdate;
+                        Debug.LogWarning($"[ScalableMCP] Port {port} busy, retry {_portRetryCount}/{maxRetries} in {_portRetryCount}s...");
+                    }
+                    else
+                    {
+                        _portRetryCount = 0;
+                        Debug.LogError($"[ScalableMCP] Port {port} still occupied after {maxRetries} retries. Use Tools > Scalable MCP → Refresh.");
+                    }
+                    return;
+                }
+
+                _portRetryCount = 0;
+                EditorApplication.update -= OnRetryUpdate;
+
                 var host = ScalableMcpSettings.Instance.AllowRemoteConnections ? "0.0.0.0" : "localhost";
                 _wsServer = new WebSocketServer($"ws://{host}:{port}");
                 _wsServer.AddWebSocketService("/McpUnity", () => new ScalableMcpSocketHandler(this));
@@ -120,8 +120,10 @@ namespace ScalableMCP.Editor
             }
             catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
             {
+                // IsPortInUse said free but bind failed — schedule a single retry, no recursion
                 _wsServer = null;
-                StartServer(); // rare race — re-enter retry path
+                _portRetryCount = 0;
+                EditorApplication.delayCall += StartServer;
             }
             catch (Exception ex)
             {
@@ -134,7 +136,7 @@ namespace ScalableMCP.Editor
         {
             if (EditorApplication.timeSinceStartup < _portRetryAt) return;
             EditorApplication.update -= OnRetryUpdate;
-            StartServer();
+            if (!IsListening) StartServer();
         }
 
         private static bool IsPortInUse(int port)
@@ -149,6 +151,10 @@ namespace ScalableMCP.Editor
             catch (SocketException)
             {
                 return true;
+            }
+            catch (Exception)
+            {
+                return false; // unknown error — let websocket-sharp try and report
             }
         }
 
