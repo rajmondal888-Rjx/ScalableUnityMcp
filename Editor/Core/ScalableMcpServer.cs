@@ -158,6 +158,14 @@ namespace ScalableMCP.Editor
             }
         }
 
+        public void ForceRestart()
+        {
+            EditorApplication.update -= OnRetryUpdate;
+            _portRetryCount = 0;
+            StopServer();
+            StartServer();
+        }
+
         public void StopServer(ushort? closeCode = null, string closeReason = null)
         {
             if (!IsListening) return;

@@ -58,20 +58,17 @@ namespace ScalableMCP.Editor
             if (listening)
             {
                 if (GUILayout.Button("Stop", GUILayout.Height(28)))
-                    server.StopServer();
+                    server?.StopServer();
             }
             else
             {
-                GUI.enabled = NodeServerInstaller.IsInstalled;
                 if (GUILayout.Button("Start", GUILayout.Height(28)))
                     server?.StartServer();
-                GUI.enabled = true;
             }
 
             if (GUILayout.Button("Restart", GUILayout.Height(28)))
             {
-                server?.StopServer();
-                server?.StartServer();
+                server?.ForceRestart();
                 Repaint();
             }
 
