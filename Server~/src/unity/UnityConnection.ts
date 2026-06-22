@@ -37,14 +37,14 @@ export interface UnityConnectionConfig {
 }
 
 const DEFAULT_CONFIG = {
-  connectTimeout: 5000,
+  connectTimeout: 1500,           // short — if Unity isn't up yet, fail fast and retry via backoff
   minReconnectDelay: 1000,
-  maxReconnectDelay: 30000,
-  reconnectBackoffMultiplier: 2,
+  maxReconnectDelay: 15000,       // cap at 15s so reconnect feels snappy after Unity reloads
+  reconnectBackoffMultiplier: 1.5,
   maxReconnectAttempts: -1,       // never give up — Unity may be recompiling or reloading
   heartbeatInterval: 45000,
-  heartbeatTimeout: 20000,        // Unity can be busy for >5s during heavy ops
-  playModePollingInterval: 3000
+  heartbeatTimeout: 20000,        // Unity can be busy >5s during heavy ops
+  playModePollingInterval: 2000
 };
 
 export class UnityConnection extends EventEmitter {
