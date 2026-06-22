@@ -114,6 +114,7 @@ namespace ScalableMCP.Editor
 
                 var host = ScalableMcpSettings.Instance.AllowRemoteConnections ? "0.0.0.0" : "localhost";
                 _wsServer = new WebSocketServer($"ws://{host}:{port}");
+                _wsServer.ReuseAddress = true;
                 _wsServer.AddWebSocketService("/McpUnity", () => new ScalableMcpSocketHandler(this));
                 _wsServer.Start();
                 Debug.Log($"[ScalableMCP] Server started on {host}:{port}");
