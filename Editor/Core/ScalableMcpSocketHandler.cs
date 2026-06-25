@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Unity.EditorCoroutines.Editor;
-using UnityEditor;
 using UnityEngine;
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -41,8 +40,8 @@ namespace ScalableMCP.Editor
             var requestId  = requestJson["id"]?.ToString();
             var tcs        = new TaskCompletionSource<JObject>();
 
-            // All Unity Editor APIs must run on the main thread — queue via delayCall
-            EditorApplication.delayCall += () => DispatchToMainThread(method, parameters, tcs);
+            // All Unity Editor APIs must run on the main thread — enqueue to thread-safe queue
+            ScalableMcpServer.RunOnMainThread(() => DispatchToMainThread(method, parameters, tcs));
 
             // Send response from background thread when ready — no await, no blocking, no deadlock
             tcs.Task.ContinueWith(t =>
@@ -90,20 +89,20 @@ namespace ScalableMCP.Editor
 
             _server.Clients[ID] = clientName;
             var msg = $"[ScalableMCP] Client connected: {(string.IsNullOrEmpty(clientName) ? "Unknown" : clientName)} (total: {_server.Clients.Count})";
-            EditorApplication.delayCall += () => Debug.Log(msg);
+            ScalableMcpServer.RunOnMainThread(() => Debug.Log(msg));
         }
 
         protected override void OnClose(CloseEventArgs e)
         {
             _server.Clients.TryRemove(ID, out var name);
             var msg = $"[ScalableMCP] Client '{name}' disconnected (remaining: {_server.Clients.Count})";
-            EditorApplication.delayCall += () => Debug.Log(msg);
+            ScalableMcpServer.RunOnMainThread(() => Debug.Log(msg));
         }
 
         protected override void OnError(ErrorEventArgs e)
         {
             var msg = $"[ScalableMCP] WebSocket error: {e.Message}";
-            EditorApplication.delayCall += () => Debug.LogError(msg);
+            ScalableMcpServer.RunOnMainThread(() => Debug.LogError(msg));
         }
 
         private IEnumerator ExecuteTool(IToolHandler tool, JObject parameters, TaskCompletionSource<JObject> tcs)

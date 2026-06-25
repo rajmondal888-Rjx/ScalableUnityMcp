@@ -32,6 +32,14 @@ namespace ScalableMCP.Editor
 
         public ConcurrentDictionary<string, string> Clients { get; } = new();
 
+        private static readonly ConcurrentQueue<Action> _mainThreadActions = new();
+        public static void RunOnMainThread(Action action) => _mainThreadActions.Enqueue(action);
+        private static void DrainMainThreadQueue()
+        {
+            while (_mainThreadActions.TryDequeue(out var action))
+                try { action(); } catch { }
+        }
+
         [DidReloadScripts]
         private static void AfterReload()
         {
@@ -63,6 +71,8 @@ namespace ScalableMCP.Editor
             AssemblyReloadEvents.afterAssemblyReload     += OnAfterReload;
             EditorApplication.playModeStateChanged       -= OnPlayModeChanged;
             EditorApplication.playModeStateChanged       += OnPlayModeChanged;
+            EditorApplication.update                     -= DrainMainThreadQueue;
+            EditorApplication.update                     += DrainMainThreadQueue;
 
             InitServices();
             HandlerRegistry.RegisterAll(_tools, _resources, _consoleLogs, _testRunner);
@@ -74,6 +84,7 @@ namespace ScalableMCP.Editor
         public void Dispose()
         {
             EditorApplication.update -= OnRetryUpdate;
+            EditorApplication.update -= DrainMainThreadQueue;
             StopServer();
             EditorApplication.quitting                -= OnEditorQuitting;
             AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeReload;
@@ -228,6 +239,7 @@ namespace ScalableMCP.Editor
         {
             if (Application.isBatchMode || _instance == null) return;
             EditorApplication.update -= _instance.OnRetryUpdate;
+            EditorApplication.update -= DrainMainThreadQueue;
             if (_instance.IsListening) _instance.StopServer();
         }
 
